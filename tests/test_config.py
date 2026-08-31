@@ -58,7 +58,7 @@ def test_smoke_config_loads_and_validates():
     assert cfg.name == "gsm8k_smoke"
     # Ref resolution pulled in the model/data sub-configs.
     assert cfg.model.name == "Qwen/Qwen2.5-1.5B-Instruct"
-    assert cfg.data.dataset_name == "gsm8k"
+    assert cfg.data.dataset_name == "openai/gsm8k"
     # lambda is a sweep, not a scalar.
     assert len(cfg.reward.lambda_compute_sweep) >= 1
 

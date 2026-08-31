@@ -33,7 +33,7 @@ selective hidden-state extraction.
 - [x] `pyproject.toml` with pinned, minimal deps.
 - [x] Config loading (`configs/` + CLI). No experimental constant hard-coded in source.
 - [x] Model + tokenizer loader (model name configurable, SLM frozen).
-- [ ] GSM8K loader with explicit, non-overlapping train/val/test splits.
+- [x] GSM8K loader with explicit, non-overlapping train/val/test splits.
 - [ ] Deterministic answer extraction + exact-match reward (rule-based).
 - [ ] Selective hidden-state extraction: record layer index, token position,
       reasoning step, model revision, pooling method. Sharded/streamed storage.
