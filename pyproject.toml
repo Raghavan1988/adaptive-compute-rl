@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "when-to-think"
+version = "0.0.0"
+description = "Learning adaptive test-time compute (STOP/CONTINUE) policies for small language models."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Raghavan Muthuregunathan" }]
+
+# Dependencies are kept minimal (AGENTS.md §23). Lower bounds are known-good
+# minimums; byte-exact reproducibility comes from a lockfile, not from pinning a
+# single version here, which is brittle across platforms and CUDA builds.
+dependencies = [
+    "numpy>=1.26",        # seeding, arrays, metrics
+    "torch>=2.2",         # model forward pass, hidden-state extraction, seeding
+    "transformers>=4.44", # base SLM + tokenizer loading (frozen SLM)
+    "datasets>=2.20",     # benchmark loading (GSM8K first)
+    "pyyaml>=6.0",        # experiment configs (config over constants, AGENTS.md §21)
+    "pyarrow>=15.0",      # Parquet per-example result files (JSONL uses stdlib)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",        # research-critical behavior tests (AGENTS.md §12)
+    "ruff>=0.6",          # lint + format
+]
+
+[project.urls]
+Homepage = "https://github.com/raghavan/when-to-think"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/when_to_think"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pyupgrade, bugbear.
+select = ["E", "F", "I", "UP", "B"]
