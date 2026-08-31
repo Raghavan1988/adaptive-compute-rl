@@ -15,7 +15,9 @@ authors = [{ name = "Raghavan Muthuregunathan" }]
 # minimums; byte-exact reproducibility comes from a lockfile, not from pinning a
 # single version here, which is brittle across platforms and CUDA builds.
 dependencies = [
-    "numpy>=1.26",        # seeding, arrays, metrics
+    "numpy>=1.24,<2.0",   # seeding, arrays, metrics. Capped <2 to stay compatible
+                          # with the scientific stack in the target conda env
+                          # (scipy/numba/etc. pin numpy<2); torch/transformers work fine here.
     "torch>=2.2",         # model forward pass, hidden-state extraction, seeding
     "transformers>=4.44", # base SLM + tokenizer loading (frozen SLM)
     "datasets>=2.20",     # benchmark loading (GSM8K first)
@@ -25,7 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",        # research-critical behavior tests (AGENTS.md §12)
+    "pytest>=7.4",        # research-critical behavior tests (AGENTS.md §12)
     "ruff>=0.6",          # lint + format
 ]
 

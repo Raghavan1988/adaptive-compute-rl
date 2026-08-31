@@ -29,10 +29,10 @@ they are answered.
 Goal: load a model + benchmark and generate scored, reproducible answers with
 selective hidden-state extraction.
 
-- [ ] Scaffold repo layout (`src/when_to_think/{data,models,generation,representations,probes,policies,rewards,evaluation,utils}`, `scripts/`, `tests/`, `configs/`, `results/`, `artifacts/`).
-- [ ] `pyproject.toml` with pinned, minimal deps.
-- [ ] Config loading (`configs/` + CLI). No experimental constant hard-coded in source.
-- [ ] Model + tokenizer loader (model name configurable, SLM frozen).
+- [x] Scaffold repo layout (`src/when_to_think/{data,models,generation,representations,probes,policies,rewards,evaluation,utils}`, `scripts/`, `tests/`, `configs/`, `results/`, `artifacts/`).
+- [x] `pyproject.toml` with pinned, minimal deps.
+- [x] Config loading (`configs/` + CLI). No experimental constant hard-coded in source.
+- [x] Model + tokenizer loader (model name configurable, SLM frozen).
 - [ ] GSM8K loader with explicit, non-overlapping train/val/test splits.
 - [ ] Deterministic answer extraction + exact-match reward (rule-based).
 - [ ] Selective hidden-state extraction: record layer index, token position,

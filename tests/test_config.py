@@ -35,7 +35,11 @@ def _write(dir_path: Path, name: str, data: dict) -> Path:
 def _make_config_tree(tmp_path: Path) -> Path:
     """Build a minimal configs/{model,data,experiment} tree; return the exp file."""
     _write(tmp_path / "model", "tiny", {"name": "hf/tiny-model"})
-    _write(tmp_path / "data", "toy", {"dataset_name": "toy", "train_split": "train", "test_split": "test"})
+    _write(
+        tmp_path / "data",
+        "toy",
+        {"dataset_name": "toy", "train_split": "train", "test_split": "test"},
+    )
     exp = _write(
         tmp_path / "experiment",
         "exp",
@@ -78,7 +82,11 @@ def test_tokenizer_name_defaults_to_model_name(tmp_path):
 
 def test_missing_ref_file_raises(tmp_path):
     _write(tmp_path / "data", "toy", {"dataset_name": "toy"})
-    exp = _write(tmp_path / "experiment", "exp", {"name": "exp", "model": "does-not-exist", "data": "toy"})
+    exp = _write(
+        tmp_path / "experiment",
+        "exp",
+        {"name": "exp", "model": "does-not-exist", "data": "toy"},
+    )
     with pytest.raises(FileNotFoundError):
         load_config(exp, configs_root=tmp_path)
 

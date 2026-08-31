@@ -192,7 +192,9 @@ def apply_overrides(raw: dict[str, Any], overrides: list[str]) -> dict[str, Any]
         for part in parts[:-1]:
             node = node.setdefault(part, {})
             if not isinstance(node, dict):
-                raise ValueError(f"Cannot descend into non-mapping at {part!r} in override {item!r}")
+                raise ValueError(
+                    f"Cannot descend into non-mapping at {part!r} in override {item!r}"
+                )
         node[parts[-1]] = parsed
     return raw
 
@@ -253,7 +255,9 @@ def validate_config(cfg: ExperimentConfig) -> None:
 
     r = cfg.reward
     if not r.lambda_compute_sweep:
-        raise ValueError("reward.lambda_compute_sweep must be non-empty (lambda is never universal)")
+        raise ValueError(
+            "reward.lambda_compute_sweep must be non-empty (lambda is never universal)"
+        )
     if any(lam < 0 for lam in r.lambda_compute_sweep):
         raise ValueError("reward.lambda_compute_sweep values must be non-negative")
 
