@@ -1,0 +1,10 @@
+# Small instruct SLM that fits comfortably on a single 24GB GPU (e.g. RTX 4090)
+# with room for batching and hidden-state caching. Frozen in initial experiments.
+name: Qwen/Qwen2.5-1.5B-Instruct
+# Pin `revision` to a specific commit hash for real, reproducible runs (AGENTS.md §9).
+revision: null
+tokenizer_name: null   # defaults to `name`
+dtype: bfloat16
+device: auto
+trust_remote_code: false
+frozen: true

@@ -1,0 +1,13 @@
+# GSM8K: grade-school math word problems with exact numeric answers, so reward is
+# deterministic rule-based exact match (no LLM judge). The recommended first
+# benchmark (README "Initial Tasks and Models").
+dataset_name: gsm8k
+dataset_config: main
+train_split: train
+test_split: test
+# Validation is carved from the TRAIN split; the test split is never used for
+# tuning probes, policies, thresholds, or hyperparameters (AGENTS.md §4.2).
+val_fraction: 0.1
+max_train_examples: null   # null = use all
+max_test_examples: null
+sampling_seed: 0

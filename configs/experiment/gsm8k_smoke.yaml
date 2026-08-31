@@ -1,0 +1,38 @@
+# Small, fast smoke experiment to exercise the M0 pipeline end-to-end on a few
+# examples. NOT a real result: budgets and example counts are deliberately tiny.
+# Real experiments raise these and pin model.revision.
+name: gsm8k_smoke
+seed: 0
+
+# String refs resolve to configs/model/*.yaml and configs/data/*.yaml.
+model: qwen2.5-1.5b
+data: gsm8k
+
+# Override just the sampling caps for a quick run (the base data config keeps them null).
+# Done here rather than in the shared data config so the smoke caps don't leak into
+# real experiments that reuse configs/data/gsm8k.yaml.
+
+generation:
+  max_reasoning_budget: 256
+  reasoning_increment: 64
+  decision_interval: 64
+  fixed_budgets: [0, 128, 256]
+  temperature: 0.7
+  top_p: 0.95
+  do_sample: true
+  num_samples: 1
+
+representation:
+  layers: [-1]
+  token_position: last
+  pooling: null
+
+reward:
+  task_reward_correct: 1.0
+  task_reward_incorrect: 0.0
+  # lambda is never universal (AGENTS.md §7): always a sweep, even in a smoke run.
+  lambda_compute_sweep: [0.0, 0.0001, 0.0005, 0.001]
+  compute_proxy: reasoning_tokens
+
+output_dir: results
+notes: "M0 smoke config; tiny budgets, not a reportable result."
