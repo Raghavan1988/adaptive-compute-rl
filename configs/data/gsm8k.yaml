@@ -1,7 +1,8 @@
 # GSM8K: grade-school math word problems with exact numeric answers, so reward is
 # deterministic rule-based exact match (no LLM judge). The recommended first
 # benchmark (README "Initial Tasks and Models").
-dataset_name: gsm8k
+# Canonical namespaced id (datasets>=3 dropped the bare "gsm8k" alias). Same data.
+dataset_name: openai/gsm8k
 dataset_config: main
 train_split: train
 test_split: test
