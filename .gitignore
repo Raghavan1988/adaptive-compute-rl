@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Testing / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Machine-generated experiment outputs (kept out of git; dirs preserved via .gitkeep).
+# Result files are the source of truth for a run but are regenerated from config,
+# so they are not versioned here. Do not hand-edit or commit these.
+results/*
+artifacts/figures/*
+artifacts/tables/*
+!**/.gitkeep
+
+# Large local caches (models, datasets)
+*.pt
+*.pth
+*.safetensors
+data_cache/
+hf_cache/
