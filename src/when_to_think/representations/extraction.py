@@ -33,8 +33,15 @@ class RepresentationDescriptor:
 
 
 def _last_token_indices(attention_mask: torch.Tensor) -> torch.Tensor:
-    """Index of the last real (non-pad) token in each row."""
-    return attention_mask.long().sum(dim=1) - 1
+    """Index of the last real (non-pad) token in each row, for either padding side.
+
+    Found as the last position where the mask is 1 (not `sum-1`, which is only
+    correct for right padding — we left-pad by default, where real tokens sit at
+    the end). `argmax` on the reversed mask returns the first 1 from the right.
+    """
+    seq_len = attention_mask.shape[1]
+    from_right = torch.argmax(attention_mask.long().flip(dims=[1]), dim=1)
+    return seq_len - 1 - from_right
 
 
 def pool_hidden(
@@ -75,7 +82,9 @@ def extract_hidden_states(
     for layer in spec.layers:
         if not -num <= layer < num:
             raise IndexError(f"layer {layer} out of range for {num} hidden states")
-        pooled = pool_hidden(hidden_states[layer], attention_mask, spec.token_position, spec.pooling)
+        pooled = pool_hidden(
+            hidden_states[layer], attention_mask, spec.token_position, spec.pooling
+        )
         # Store float32 on CPU: hidden states may be bf16, which numpy cannot hold.
         result[layer] = pooled.detach().to(torch.float32).cpu().numpy()
     return result
@@ -106,7 +115,9 @@ class ShardedRepresentationWriter:
         self._manifest: list[dict] = []
         (self.out_dir / "descriptor.json").write_text(json.dumps(asdict(descriptor), indent=2))
 
-    def add(self, example_id: str, reasoning_step: int, layer_vectors: dict[int, np.ndarray]) -> None:
+    def add(
+        self, example_id: str, reasoning_step: int, layer_vectors: dict[int, np.ndarray]
+    ) -> None:
         self._buffer.append((example_id, reasoning_step, layer_vectors))
         if len(self._buffer) >= self.shard_size:
             self._flush()
@@ -134,7 +145,7 @@ class ShardedRepresentationWriter:
             for row in self._manifest:
                 handle.write(json.dumps(row) + "\n")
 
-    def __enter__(self) -> "ShardedRepresentationWriter":
+    def __enter__(self) -> ShardedRepresentationWriter:
         return self
 
     def __exit__(self, *exc) -> None:
