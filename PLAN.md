@@ -12,6 +12,35 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 
 ---
 
+## Current status
+
+**M0 (Infrastructure) is complete** as of 2026-08-31. Next up: **M1** (counterfactual
+fixed-budget dataset).
+
+- End-to-end pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
+  writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
+  a `run_record.json` to `results/<run_id>/`.
+- 64 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- Verified end-to-end on a tiny model; run with the real SLM (Qwen2.5-1.5B) for an
+  actual result.
+
+Concrete decisions locked in during M0 (see AGENTS.md §25 — these are
+research-significant and should not change silently):
+
+- **Dataset id:** `openai/gsm8k` (the bare `gsm8k` alias was dropped by `datasets>=3`;
+  same corpus).
+- **Default model:** `Qwen/Qwen2.5-1.5B-Instruct`, frozen. Fits the 16 GB laptop 4090
+  comfortably; model is a config field, so larger models are a config change.
+- **Compute proxy:** `reasoning_tokens` (generated token count) — never called FLOPs.
+- **Reward:** `R = R_task − λ·C`; `λ` is a **sweep** (`reward.lambda_compute_sweep`),
+  `reward_task` and `reward_compute` logged separately.
+- **M0 eval method name:** `single_pass_fixed_budget` (one reasoning pass; STOP/CONTINUE
+  arrives in M4).
+- **Env:** work in the base conda env; `numpy` pinned `<2` so the rest of that env keeps
+  working (see `pip install -e ".[dev]"`).
+
+---
+
 ## The four questions this plan must answer
 
 1. Does additional reasoning have **heterogeneous value** across examples?
@@ -44,7 +73,13 @@ selective hidden-state extraction.
 
 **Tests (required):** answer extraction (valid + malformed), reward calculation
 (correct/incorrect task reward, compute penalty applied exactly once), budget
-enforcement (never silently exceeds max), split integrity (no overlap).
+enforcement (never silently exceeds max), split integrity (no overlap). ✅ All present.
+
+**Built:** `config.py` (typed config + CLI overrides), `models/loader.py` (frozen SLM),
+`data/gsm8k.py` (disjoint splits), `rewards/{answer_extraction,reward}.py`,
+`representations/extraction.py` (selective extraction + sharded writer),
+`generation/generate.py` (single-pass, budget-enforced), `utils/{seeding,run_record}.py`,
+`evaluation/evaluate.py`, and `scripts/evaluate.py`.
 
 **Exit:** one config-driven command produces a scored JSONL with token counts,
 latency, and extracted hidden states for a GSM8K sample.

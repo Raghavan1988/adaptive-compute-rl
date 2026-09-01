@@ -23,6 +23,41 @@ Retrieval, tool use, and escalation to a larger model are intentionally out of s
 
 ---
 
+## Getting Started
+
+**Status:** M0 (infrastructure) is complete. See [`PLAN.md`](./PLAN.md) for the
+build order and current progress.
+
+```bash
+# Install (editable, with dev tools). numpy is pinned <2 to match this environment.
+pip install -e ".[dev]"
+
+# Run the M0 single-pass evaluation from config.
+# The default config uses Qwen2.5-1.5B-Instruct (downloads on first run;
+# fits a 16 GB GPU). Override any experimental quantity with --set.
+python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml \
+    --set data.max_test_examples=50 --set generation.max_reasoning_budget=256
+
+# Tests + lint
+pytest
+ruff check src scripts tests
+```
+
+Each run writes a machine-readable directory under `results/<run_id>/`:
+
+- `eval.jsonl` — per-example prediction, correctness, reasoning tokens, latency,
+  and reward across the full `λ` sweep.
+- `hidden_states/` — sharded `.npz` decision-point representations plus a
+  `descriptor.json` (layer / token position / pooling / model revision) and a
+  `manifest.jsonl` index.
+- `run_record.json` — config snapshot, git commit + dirty flag, seed, and
+  resolved runtime facts, so the run is reproducible (see `AGENTS.md` §9).
+
+Every experimental quantity (model, dataset, budgets, decision interval, layers,
+`λ`, seed) is set in config, never hard-coded — so reruns need no source edits.
+
+---
+
 ## Motivation
 
 A fixed reasoning budget creates two kinds of waste:
@@ -210,7 +245,8 @@ Start with automatically verifiable reasoning tasks.
 
 Recommended initial benchmark:
 
-- **GSM8K**
+- **GSM8K** (loaded as `openai/gsm8k`, config `main`) — exact integer answers, so
+  the task reward is deterministic rule-based exact match (no LLM judge).
 
 Then expand to one harder or distribution-shifted benchmark after the pipeline is stable.
 
@@ -222,9 +258,9 @@ Potential later benchmarks:
 
 Avoid open-ended QA in the first experiment. Exact-match or rule-based rewards make the scientific result much easier to interpret.
 
-For the SLM, prefer a model small enough that many counterfactual generations and RL rollouts are affordable.
+For the SLM, prefer a model small enough that many counterfactual generations and RL rollouts are affordable. The default is **`Qwen/Qwen2.5-1.5B-Instruct`** (frozen), which fits a 16 GB GPU comfortably; ~3B is fine, 7B in bf16 is tight.
 
-The exact model should be configurable rather than hard-coded.
+The exact model is configurable (`configs/model/*.yaml`), never hard-coded.
 
 ---
 
@@ -386,40 +422,43 @@ Avoid those stronger claims unless directly supported by experiments.
 
 ---
 
-## Proposed Repository Structure
+## Repository Structure
+
+Modules marked ✅ are implemented (M0); the rest arrive with their milestone.
 
 ```text
 when-to-think/
 ├── README.md
-├── AGENTS.md
-├── pyproject.toml
+├── AGENTS.md                     # authoritative research contract
+├── PLAN.md                       # trackable build order + current status
+├── CLAUDE.md                     # operational guide for coding agents
+├── pyproject.toml                # ✅ minimal pinned deps (numpy<2 for this env)
 ├── configs/
-│   ├── model/
-│   ├── data/
-│   └── experiment/
+│   ├── model/qwen2.5-1.5b.yaml   # ✅
+│   ├── data/gsm8k.yaml           # ✅ (openai/gsm8k)
+│   └── experiment/gsm8k_smoke.yaml  # ✅
 ├── src/
 │   └── when_to_think/
-│       ├── data/
-│       ├── models/
-│       ├── generation/
-│       ├── representations/
-│       ├── probes/
-│       ├── policies/
-│       ├── rewards/
-│       ├── evaluation/
-│       └── utils/
+│       ├── config.py             # ✅ typed config + YAML composition + CLI overrides
+│       ├── data/                 # ✅ gsm8k.py — disjoint train/val/test splits
+│       ├── models/               # ✅ loader.py — frozen SLM + tokenizer
+│       ├── generation/           # ✅ generate.py — single-pass, budget-enforced
+│       ├── representations/      # ✅ extraction.py — selective + sharded storage
+│       ├── probes/               # ⬜ M3
+│       ├── policies/             # ⬜ M4
+│       ├── rewards/              # ✅ answer_extraction.py, reward.py
+│       ├── evaluation/           # ✅ evaluate.py — scored JSONL pipeline
+│       └── utils/                # ✅ seeding.py, run_record.py
 ├── scripts/
-│   ├── generate_fixed_budgets.py
-│   ├── build_oracle.py
-│   ├── train_probe.py
-│   ├── train_policy.py
-│   └── evaluate.py
-├── tests/
+│   ├── evaluate.py               # ✅ M0 single-pass eval
+│   ├── generate_fixed_budgets.py # ⬜ M1
+│   ├── build_oracle.py           # ⬜ M2
+│   ├── train_probe.py            # ⬜ M3
+│   └── train_policy.py           # ⬜ M4
+├── tests/                        # ✅ 64 tests (config, splits, reward, extraction, ...)
 ├── notebooks/
-├── artifacts/
-│   ├── figures/
-│   └── tables/
-└── results/
+├── artifacts/{figures,tables}/
+└── results/                      # per-run outputs (gitignored)
 ```
 
 Notebooks should be used for exploration and visualization only. Core experimental logic belongs in `src/` and executable scripts.
@@ -464,7 +503,7 @@ Everything else is optional until those questions are answered.
 
 ## Milestones
 
-### M0 — Infrastructure
+### M0 — Infrastructure ✅ complete
 
 - Load model and benchmark.
 - Generate exact-match answers.
@@ -550,4 +589,5 @@ Those extensions may be valuable later, but they weaken the initial experiment i
 
 ## License
 
-Choose a license once model, dataset, and dependency licenses have been reviewed.
+Apache License 2.0 — see [`LICENSE`](./LICENSE). Note that the base model and
+dataset carry their own licenses; review them before redistribution.

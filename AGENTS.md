@@ -280,20 +280,23 @@ Keep reusable logic under:
 src/when_to_think/
 ```
 
-Suggested modules:
+Modules (✅ = implemented in M0; the rest arrive with their milestone):
 
 ```text
-data/
-generation/
-representations/
-probes/
-policies/
-rewards/
-evaluation/
-utils/
+config.py         # ✅ typed experiment config: YAML composition + CLI overrides
+data/             # ✅ dataset loading + disjoint splits (gsm8k.py)
+models/           # ✅ frozen SLM + tokenizer loader (loader.py)
+generation/       # ✅ budget-enforced reasoning generation (generate.py)
+representations/  # ✅ selective hidden-state extraction + sharded storage
+rewards/          # ✅ answer extraction + task reward / compute penalty
+evaluation/       # ✅ scored, machine-readable evaluation (evaluate.py)
+utils/            # ✅ seeding, run records
+probes/           # ⬜ M3
+policies/         # ⬜ M4
 ```
 
-Scripts under `scripts/` should be thin entry points.
+Scripts under `scripts/` should be thin entry points. See `PLAN.md` for milestone
+status.
 
 Bad:
 
