@@ -82,6 +82,14 @@ class GenerationConfig:
     # Counterfactual samples per (example, budget). >1 estimates P(correct | budget)
     # rather than a single draw (README Phase 1).
     num_samples: int = 1
+    # Answer-elicitation protocol for fixed-budget runs (research-significant, §25).
+    # After the reasoning budget, if the model has not already produced a clean final
+    # answer, `answer_cue` is appended and up to `answer_max_tokens` are generated
+    # (greedily) to force one. This makes "budget = 0 / direct answer" and truncated
+    # budgets yield a scorable answer instead of a dangling reasoning trace. The cue
+    # primes the '####' marker that answer extraction reads with highest precedence.
+    answer_cue: str = "\n#### "
+    answer_max_tokens: int = 24
 
 
 @dataclass
@@ -246,6 +254,8 @@ def validate_config(cfg: ExperimentConfig) -> None:
         )
     if g.num_samples <= 0:
         raise ValueError("generation.num_samples must be positive")
+    if g.answer_max_tokens <= 0:
+        raise ValueError("generation.answer_max_tokens must be positive")
 
     d = cfg.data
     if not 0.0 <= d.val_fraction < 1.0:

@@ -110,15 +110,21 @@ class ShardedRepresentationWriter:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.descriptor = descriptor
         self.shard_size = shard_size
-        self._buffer: list[tuple[str, int, dict[int, np.ndarray]]] = []
+        self._buffer: list[tuple[str, int, dict[int, np.ndarray], dict]] = []
         self._shard_idx = 0
         self._manifest: list[dict] = []
         (self.out_dir / "descriptor.json").write_text(json.dumps(asdict(descriptor), indent=2))
 
     def add(
-        self, example_id: str, reasoning_step: int, layer_vectors: dict[int, np.ndarray]
+        self,
+        example_id: str,
+        reasoning_step: int,
+        layer_vectors: dict[int, np.ndarray],
+        **extra_metadata,
     ) -> None:
-        self._buffer.append((example_id, reasoning_step, layer_vectors))
+        """Buffer one record. `extra_metadata` (e.g. budget, sample_index) is written
+        verbatim into the manifest row so each vector stays traceable to its source."""
+        self._buffer.append((example_id, reasoning_step, layer_vectors, extra_metadata))
         if len(self._buffer) >= self.shard_size:
             self._flush()
 
@@ -126,14 +132,20 @@ class ShardedRepresentationWriter:
         if not self._buffer:
             return
         arrays = {
-            f"layer_{layer}": np.stack([vecs[layer] for (_, _, vecs) in self._buffer])
+            f"layer_{layer}": np.stack([record[2][layer] for record in self._buffer])
             for layer in self.descriptor.layers
         }
         shard_name = f"shard_{self._shard_idx:05d}.npz"
         np.savez_compressed(self.out_dir / shard_name, **arrays)
-        for row, (example_id, step, _) in enumerate(self._buffer):
+        for row, (example_id, step, _, extra) in enumerate(self._buffer):
             self._manifest.append(
-                {"example_id": example_id, "reasoning_step": step, "shard": shard_name, "row": row}
+                {
+                    "example_id": example_id,
+                    "reasoning_step": step,
+                    **extra,
+                    "shard": shard_name,
+                    "row": row,
+                }
             )
         self._shard_idx += 1
         self._buffer = []
