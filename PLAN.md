@@ -34,13 +34,13 @@ selective hidden-state extraction.
 - [x] Config loading (`configs/` + CLI). No experimental constant hard-coded in source.
 - [x] Model + tokenizer loader (model name configurable, SLM frozen).
 - [x] GSM8K loader with explicit, non-overlapping train/val/test splits.
-- [ ] Deterministic answer extraction + exact-match reward (rule-based).
-- [ ] Selective hidden-state extraction: record layer index, token position,
+- [x] Deterministic answer extraction + exact-match reward (rule-based).
+- [x] Selective hidden-state extraction: record layer index, token position,
       reasoning step, model revision, pooling method. Sharded/streamed storage.
-- [ ] Run-record writer: `run_id, timestamp, git_commit, model_name, model_revision,
+- [x] Run-record writer: `run_id, timestamp, git_commit, model_name, model_revision,
       tokenizer_name, dataset, split, seed, generation_config, reasoning_budget,
       decision_interval, reward_config, lambda_compute`.
-- [ ] Seed control: Python / NumPy / PyTorch / data sampling.
+- [x] Seed control: Python / NumPy / PyTorch / data sampling.
 
 **Tests (required):** answer extraction (valid + malformed), reward calculation
 (correct/incorrect task reward, compute penalty applied exactly once), budget
@@ -48,6 +48,10 @@ enforcement (never silently exceeds max), split integrity (no overlap).
 
 **Exit:** one config-driven command produces a scored JSONL with token counts,
 latency, and extracted hidden states for a GSM8K sample.
+✅ Done — `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
+writes `eval.jsonl` (per-example score + reward sweep), sharded hidden states, and
+`run_record.json`. Verified end-to-end on a tiny model; run with the real SLM
+(Qwen2.5-1.5B) for an actual result.
 
 ---
 
