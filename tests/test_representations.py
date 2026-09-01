@@ -99,9 +99,12 @@ def test_sharded_writer_roundtrip(tmp_path):
         for i in range(5):
             writer.add(example_id=f"ex-{i}", reasoning_step=0, layer_vectors=vectors[i])
 
-    manifest = [json.loads(line) for line in (tmp_path / "manifest.jsonl").read_text().splitlines()]
+    manifest_text = (tmp_path / "manifest.jsonl").read_text().splitlines()
+    manifest = [json.loads(line) for line in manifest_text]
     assert len(manifest) == 5
-    assert {row["shard"] for row in manifest} == {"shard_00000.npz", "shard_00001.npz", "shard_00002.npz"}
+    assert {row["shard"] for row in manifest} == {
+        "shard_00000.npz", "shard_00001.npz", "shard_00002.npz"
+    }
 
     # descriptor persisted with provenance.
     desc = json.loads((tmp_path / "descriptor.json").read_text())
@@ -111,4 +114,6 @@ def test_sharded_writer_roundtrip(tmp_path):
     # Values round-trip: reconstruct ex-3's vector from its manifest entry.
     entry = next(row for row in manifest if row["example_id"] == "ex-3")
     shard = np.load(tmp_path / entry["shard"])
-    np.testing.assert_array_equal(shard["layer_-1"][entry["row"]], np.full((4,), 3.0, dtype=np.float32))
+    np.testing.assert_array_equal(
+        shard["layer_-1"][entry["row"]], np.full((4,), 3.0, dtype=np.float32)
+    )

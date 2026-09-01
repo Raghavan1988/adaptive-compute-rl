@@ -12,7 +12,8 @@ from when_to_think.utils import (
     write_run_record,
 )
 
-SMOKE_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "experiment" / "gsm8k_smoke.yaml"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SMOKE_CONFIG = REPO_ROOT / "configs" / "experiment" / "gsm8k_smoke.yaml"
 
 
 def test_generate_run_id_contains_name_and_is_unique():
