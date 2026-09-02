@@ -14,15 +14,20 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 
 ## Current status
 
-**M0 (Infrastructure) is complete** as of 2026-08-31. Next up: **M1** (counterfactual
-fixed-budget dataset).
+**M0 (Infrastructure) and M1 (Counterfactual compute dataset) are complete** as of
+2026-09-01. Next up: **M2** (Oracle allocation).
 
-- End-to-end pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
+- M0 pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
   writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
   a `run_record.json` to `results/<run_id>/`.
-- 64 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
-- Verified end-to-end on a tiny model; run with the real SLM (Qwen2.5-1.5B) for an
-  actual result.
+- M1 sweep runs from config: `python scripts/generate_fixed_budgets.py --config ...`
+  writes `fixed_budget_runs.jsonl` (per-example × per-budget records) + hidden states;
+  `python scripts/summarize_fixed_budgets.py --run-dir results/<run_id>` writes
+  `summary.json` and `accuracy_vs_compute.png` and prints the heterogeneity verdict.
+- 74 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- **Both milestones verified end-to-end on a tiny random model only** — a pipeline
+  smoke, not a scientific result. The real M1 answer (is value-of-compute
+  heterogeneous?) requires running the sweep with the actual SLM (Qwen2.5-1.5B).
 
 Concrete decisions locked in during M0 (see AGENTS.md §25 — these are
 research-significant and should not change silently):
@@ -94,16 +99,33 @@ writes `eval.jsonl` (per-example score + reward sweep), sharded hidden states, a
 
 Goal: quantify whether more reasoning helps, hurts, or does nothing — per example.
 
-- [ ] `scripts/generate_fixed_budgets.py`: run the same examples at multiple fixed
+- [x] `scripts/generate_fixed_budgets.py`: run the same examples at multiple fixed
       budgets (e.g. 0/direct, 128, 256, 512, 1024 tokens), same test examples across budgets.
-- [ ] Per-example, per-budget records: answer, correct, reasoning_tokens, latency,
+- [x] Per-example, per-budget records: answer, correct, reasoning_tokens, latency,
       hidden states at candidate decision points.
-- [ ] Aggregate the heterogeneity of value: fraction where more reasoning helps /
+- [x] Aggregate the heterogeneity of value: fraction where more reasoning helps /
       hurts / is neutral (respect **no monotonicity** — track correct→wrong flips).
-- [ ] First accuracy-vs-compute plot, generated from the result files.
+- [x] First accuracy-vs-compute plot, generated from the result files.
+
+**Tests (required):** budget-forced generation (budget 0 = direct answer, budget never
+exceeded, decision-point hidden state present), counterfactual categorization
+(helped/hurt/unchanged), heterogeneity verdict, and non-monotonicity detection even when
+endpoints agree. ✅ All present (`test_fixed_budgets.py`, `test_counterfactual.py`).
+
+**Built:** `generation/fixed_budgets.py` (two-phase budget-forced generation:
+reasoning capped at the budget, then a separate answer-elicitation phase, so
+`reasoning_tokens` is a clean compute proxy independent of answer length),
+`evaluation/fixed_budget_eval.py` (sweep over the *same* test examples × budgets ×
+samples), `evaluation/counterfactual.py` (per-example value-of-compute categorization +
+heterogeneity/non-monotonicity), `evaluation/plots.py` (accuracy-vs-compute, generated
+from `summary.json`), and thin `scripts/{generate_fixed_budgets,summarize_fixed_budgets}.py`.
 
 **Exit:** Question 1 answered with data. If value is *not* heterogeneous, flag it —
 the hypothesis is weak and should be reconsidered before M2+.
+⚠️ Pipeline complete and verified end-to-end, but only on a tiny random model (a smoke
+test). The scientific verdict is **not yet obtained** — run the sweep with Qwen2.5-1.5B
+on a real GSM8K sample to answer Question 1. The summary script already prints the
+heterogeneity verdict and warns when value is homogeneous.
 
 ---
 
