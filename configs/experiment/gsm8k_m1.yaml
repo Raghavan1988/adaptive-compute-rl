@@ -1,0 +1,33 @@
+# Real M1 experiment: Qwen2.5-1.5B on GSM8K, counterfactual fixed-budget sweep.
+# Reportable result (unlike gsm8k_smoke.yaml). Cap the test subsample at run time
+# with `--set data.max_test_examples=N` so the cap does not leak into the shared
+# data config.
+name: gsm8k_m1
+seed: 0
+
+model: qwen2.5-1.5b
+data: gsm8k
+
+generation:
+  max_reasoning_budget: 512      # must be >= max(fixed_budgets); validation enforces this
+  reasoning_increment: 64
+  decision_interval: 64
+  fixed_budgets: [0, 128, 256, 512]   # 0 = direct answer, no reasoning
+  temperature: 0.7
+  top_p: 0.95
+  do_sample: true
+  num_samples: 5                 # counterfactual samples per (example, budget); >1 estimates P(correct|budget)
+
+representation:
+  layers: [-1]
+  token_position: last
+  pooling: null
+
+reward:
+  task_reward_correct: 1.0
+  task_reward_incorrect: 0.0
+  lambda_compute_sweep: [0.0, 0.0001, 0.0005, 0.001]   # lambda is never a single value
+  compute_proxy: reasoning_tokens
+
+output_dir: results
+notes: "M1 real run: Qwen2.5-1.5B, GSM8K test subsample, counterfactual fixed-budget sweep."
