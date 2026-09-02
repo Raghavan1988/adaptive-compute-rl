@@ -31,7 +31,7 @@ def plot_accuracy_vs_compute(
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(xs, ys, marker="o")
-    for b, x, y in zip(budgets, xs, ys):
+    for b, x, y in zip(budgets, xs, ys, strict=True):
         ax.annotate(f"budget={b}", (x, y), textcoords="offset points", xytext=(5, 5), fontsize=8)
     ax.set_xlabel(f"Mean compute ({x_key})")
     ax.set_ylabel("Accuracy")
