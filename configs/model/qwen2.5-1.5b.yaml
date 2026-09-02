@@ -1,8 +1,9 @@
 # Small instruct SLM that fits comfortably on a single 24GB GPU (e.g. RTX 4090)
 # with room for batching and hidden-state caching. Frozen in initial experiments.
 name: Qwen/Qwen2.5-1.5B-Instruct
-# Pin `revision` to a specific commit hash for real, reproducible runs (AGENTS.md §9).
-revision: null
+# Pinned to the HuggingFace main commit as of 2026-09-01 (AGENTS.md §9).
+# Qwen/Qwen2.5-1.5B-Instruct @ 2024-09-25.
+revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
 tokenizer_name: null   # defaults to `name`
 dtype: bfloat16
 device: auto
