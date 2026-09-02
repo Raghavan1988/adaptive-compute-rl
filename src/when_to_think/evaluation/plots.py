@@ -44,3 +44,53 @@ def plot_accuracy_vs_compute(
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
     return out_path
+
+
+def plot_oracle_frontier(
+    summary: dict[str, Any],
+    out_path: str | Path,
+    *,
+    x_key: str = "mean_reasoning_tokens",
+    title: str = "Oracle vs. fixed budgets (accuracy-compute frontier)",
+) -> Path:
+    """Plot the oracle Pareto frontier against the fixed-budget baseline points (M2).
+
+    Both series come from the machine-readable oracle summary (AGENTS.md §18): fixed
+    budgets as labeled markers, the oracle frontier as a line. A dominating oracle sits
+    up-and-to-the-left (more accuracy per token).
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")  # headless; no display needed
+    import matplotlib.pyplot as plt
+
+    fixed = sorted(summary["fixed_budget_points"], key=lambda p: p[x_key])
+    frontier = sorted(summary["oracle_frontier"], key=lambda p: p[x_key])
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    fx = [p[x_key] for p in fixed]
+    fy = [p["accuracy"] for p in fixed]
+    ax.plot(fx, fy, marker="s", linestyle="--", color="tab:gray", label="fixed budget")
+    for p in fixed:
+        ax.annotate(
+            f"b={p['budget']}", (p[x_key], p["accuracy"]),
+            textcoords="offset points", xytext=(5, -10), fontsize=8, color="tab:gray",
+        )
+
+    ox = [p[x_key] for p in frontier]
+    oy = [p["mean_accuracy"] for p in frontier]
+    ax.plot(ox, oy, marker="o", color="tab:blue", label="oracle (upper bound)")
+
+    ax.set_xlabel(f"Mean compute ({x_key})")
+    ax.set_ylabel("Accuracy")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    return out_path
