@@ -117,3 +117,18 @@ def test_sharded_writer_roundtrip(tmp_path):
     np.testing.assert_array_equal(
         shard["layer_-1"][entry["row"]], np.full((4,), 3.0, dtype=np.float32)
     )
+
+
+def test_sharded_writer_records_extra_metadata(tmp_path):
+    # M1 needs each vector keyed by budget + sample; extra kwargs go into the manifest.
+    descriptor = _descriptor(layers=[-1])
+    with ShardedRepresentationWriter(tmp_path, descriptor, shard_size=8) as writer:
+        writer.add(
+            "ex-0", reasoning_step=0,
+            layer_vectors={-1: np.zeros((4,), dtype=np.float32)},
+            budget=128, sample_index=2,
+        )
+    manifest = [json.loads(line) for line in (tmp_path / "manifest.jsonl").read_text().splitlines()]
+    assert manifest[0]["budget"] == 128
+    assert manifest[0]["sample_index"] == 2
+    assert manifest[0]["example_id"] == "ex-0"
