@@ -55,7 +55,7 @@ def test_stop_wrong_continue_correct_depends_on_cost():
 def test_stop_wrong_continue_wrong_takes_cheaper():
     rows = [_row("A", STOP, False), _row("A", CONTINUE, False)]
     for lam in (0.0, 1e-4, 0.02):
-        assert oracle_allocation(lam and rows or rows, lam)["budget_choices"]["A"] == STOP
+        assert oracle_allocation(rows, lam)["budget_choices"]["A"] == STOP
 
 
 # --------------------------------------------------------------------------- #
