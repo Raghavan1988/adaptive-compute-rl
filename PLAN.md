@@ -14,8 +14,8 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 
 ## Current status
 
-**M0 (Infrastructure) and M1 (Counterfactual compute dataset) are complete** as of
-2026-09-01. Next up: **M2** (Oracle allocation).
+**M0 (Infrastructure), M1 (Counterfactual compute dataset), and M2 (Oracle allocation)
+are complete** as of 2026-09-01. Next up: **M3** (Supervised value-of-compute probe).
 
 - M0 pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
   writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
@@ -24,10 +24,16 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
   writes `fixed_budget_runs.jsonl` (per-example × per-budget records) + hidden states;
   `python scripts/summarize_fixed_budgets.py --run-dir results/<run_id>` writes
   `summary.json` and `accuracy_vs_compute.png` and prints the heterogeneity verdict.
-- 74 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
-- **Both milestones verified end-to-end on a tiny random model only** — a pipeline
-  smoke, not a scientific result. The real M1 answer (is value-of-compute
-  heterogeneous?) requires running the sweep with the actual SLM (Qwen2.5-1.5B).
+- M2 oracle builds from an M1 run: `python scripts/build_oracle.py --run-dir results/<run_id>`
+  writes `oracle_summary.json`, per-example `oracle_allocation.jsonl`, and
+  `oracle_frontier.png`, and prints whether the oracle beats fixed budgets at matched
+  accuracy (the M2 exit gate).
+- 84 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- **The pipelines are verified end-to-end but not yet with the real model** — M0/M1 on a
+  tiny random model, M2 on a synthetic heterogeneous run. The scientific answers (is
+  value-of-compute heterogeneous? does the oracle beat fixed budgets?) require running
+  M1's sweep and then M2 with the actual SLM (Qwen2.5-1.5B); see `Grok.md` for the M1 run
+  task.
 
 Concrete decisions locked in during M0 (see AGENTS.md §25 — these are
 research-significant and should not change silently):
@@ -133,16 +139,33 @@ heterogeneity verdict and warns when value is homogeneous.
 
 Goal: upper bound on the value of adaptive allocation.
 
-- [ ] `scripts/build_oracle.py`: per example, pick the cheapest budget that is correct.
-- [ ] Oracle Pareto frontier plot over fixed-budget baselines.
-- [ ] Quantify maximum available compute savings at matched accuracy.
+- [x] `scripts/build_oracle.py`: per example, pick the cheapest budget that is correct.
+- [x] Oracle Pareto frontier plot over fixed-budget baselines.
+- [x] Quantify maximum available compute savings at matched accuracy.
 
 **Tests (required):** oracle construction on toy trajectories:
 `STOP correct / CONTINUE correct → STOP`; `STOP wrong / CONTINUE correct → CONTINUE`
-if gain exceeds cost; `STOP wrong / CONTINUE wrong → cheaper action`.
+if gain exceeds cost; `STOP wrong / CONTINUE wrong → cheaper action`. ✅ All present
+(`test_oracle.py`), plus frontier-monotonicity, matched-accuracy savings, and the
+"oracle doesn't beat fixed" case.
+
+**Built:** `evaluation/oracle.py` — the oracle is an *omniscient* per-example allocator
+(the upper bound, not a deployable method): given penalty `λ` it picks per example
+`argmax_b [acc(e,b) − λ·tokens(e,b)]`, cheaper budget winning ties. `λ=0` is the
+accuracy-max oracle ("cheapest budget that is correct"); sweeping `λ` traces the exact
+Pareto frontier (data-derived breakpoints, no arbitrary grid). Savings are reported at
+**matched accuracy** (§4.1) and correct→wrong flips are handled by the argmax with **no
+monotonicity assumption** (§4.5). Plus `evaluation/plots.py::plot_oracle_frontier` and
+thin `scripts/build_oracle.py` (writes `oracle_summary.json`, per-example
+`oracle_allocation.jsonl`, `oracle_frontier.png`).
 
 **Exit:** if the oracle does not meaningfully beat fixed budgets, **stop and
 reconsider** before building probes or RL.
+⚠️ Pipeline complete and verified end-to-end (script + oracle + plot produce all
+outputs; hand-checked on a synthetic heterogeneous run). The **scientific verdict is not
+yet obtained** — run `build_oracle.py` on a *real* M1 run (Qwen2.5-1.5B; see `Grok.md`)
+before trusting `oracle_dominates_fixed`. The script prints the verdict and warns when
+the oracle fails to beat fixed budgets.
 
 ---
 
