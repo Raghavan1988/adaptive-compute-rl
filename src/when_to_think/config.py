@@ -125,6 +125,34 @@ class RewardConfig:
 
 
 @dataclass
+class ProbeConfig:
+    """Supervised value-of-compute probe (M3).
+
+    The probe reads a frozen hidden state at a decision point and predicts the *value
+    of continuing* — two explicit, distinct targets, evaluated separately:
+    ``value_of_compute`` (Δ accuracy, regression) and ``fixes_incorrect`` (binary).
+    These are research-significant definitions (AGENTS.md §25): changing them
+    invalidates prior probe results.
+
+    Selection discipline (AGENTS.md §4.2): ``layers`` and the regularization grids are
+    tuned on the VAL split only; the test split is scored once for the chosen model.
+    """
+
+    # Candidate layers to probe; must be a subset of the layers stored by the run.
+    layers: list[int] = field(default_factory=lambda: [-1])
+    # "next" = value of one more budget increment; "max" = value of continuing to the cap.
+    continue_mode: str = "next"
+    # P(correct) threshold defining "incorrect" for the binary fixes-it target.
+    correct_threshold: float = 0.5
+    # Regularization grids searched on val (never on test).
+    ridge_alphas: list[float] = field(default_factory=lambda: [0.1, 1.0, 10.0, 100.0])
+    logreg_alphas: list[float] = field(default_factory=lambda: [0.1, 1.0, 10.0, 100.0])
+    logreg_lr: float = 0.1
+    logreg_max_iter: int = 500
+    standardize: bool = True
+
+
+@dataclass
 class ExperimentConfig:
     """Top-level experiment definition. `seed` seeds Python/NumPy/PyTorch/sampling."""
 
@@ -135,6 +163,7 @@ class ExperimentConfig:
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     representation: RepresentationConfig = field(default_factory=RepresentationConfig)
     reward: RewardConfig = field(default_factory=RewardConfig)
+    probe: ProbeConfig = field(default_factory=ProbeConfig)
     output_dir: str = "results"
     notes: str = ""
 
@@ -217,6 +246,7 @@ def _build_experiment(raw: dict[str, Any]) -> ExperimentConfig:
     generation = _from_mapping(GenerationConfig, raw.pop("generation", {}))
     representation = _from_mapping(RepresentationConfig, raw.pop("representation", {}))
     reward = _from_mapping(RewardConfig, raw.pop("reward", {}))
+    probe = _from_mapping(ProbeConfig, raw.pop("probe", {}))
 
     unknown = set(raw) - _SCALAR_FIELDS
     if unknown:
@@ -230,6 +260,7 @@ def _build_experiment(raw: dict[str, Any]) -> ExperimentConfig:
         generation=generation,
         representation=representation,
         reward=reward,
+        probe=probe,
         **raw,
     )
     validate_config(cfg)
@@ -270,6 +301,20 @@ def validate_config(cfg: ExperimentConfig) -> None:
         )
     if any(lam < 0 for lam in r.lambda_compute_sweep):
         raise ValueError("reward.lambda_compute_sweep values must be non-negative")
+
+    p = cfg.probe
+    if not p.layers:
+        raise ValueError("probe.layers must be non-empty")
+    if p.continue_mode not in ("next", "max"):
+        raise ValueError("probe.continue_mode must be 'next' or 'max'")
+    if not 0.0 < p.correct_threshold <= 1.0:
+        raise ValueError("probe.correct_threshold must be in (0, 1]")
+    if not p.ridge_alphas or any(a <= 0 for a in p.ridge_alphas):
+        raise ValueError("probe.ridge_alphas must be non-empty and positive")
+    if not p.logreg_alphas or any(a <= 0 for a in p.logreg_alphas):
+        raise ValueError("probe.logreg_alphas must be non-empty and positive")
+    if p.logreg_lr <= 0 or p.logreg_max_iter <= 0:
+        raise ValueError("probe.logreg_lr and probe.logreg_max_iter must be positive")
 
 
 def load_config(
