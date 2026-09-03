@@ -9,6 +9,7 @@ every budget (§4.1), and every trajectory — right, wrong, malformed — is ke
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 from when_to_think.config import ExperimentConfig
@@ -28,12 +29,33 @@ METHOD = "fixed_budget_sweep"
 RUNS_FILENAME = "fixed_budget_runs.jsonl"
 
 
-def run_fixed_budget_sweep(cfg: ExperimentConfig, *, repo_dir: str | Path | None = None) -> Path:
-    """Run the M1 sweep end-to-end; return the run directory."""
+def run_fixed_budget_sweep(
+    cfg: ExperimentConfig,
+    *,
+    repo_dir: str | Path | None = None,
+    splits: Sequence[str] = ("test",),
+) -> Path:
+    """Run the M1 sweep end-to-end; return the run directory.
+
+    ``splits`` selects which dataset partitions to sweep. It defaults to ``("test",)``
+    — the M1 protocol runs the counterfactual sweep on the held-out test split only.
+    M3 needs supervised probe data on TRAIN and VAL as well; pass
+    ``splits=("train", "val", "test")`` to generate all three in one run. Each row and
+    hidden-state record is stamped with its ``source_split`` so the probe can partition
+    without ever mixing them (AGENTS.md §4.2). Selecting more splits is purely additive:
+    the default reproduces the exact M1 behavior.
+    """
     seed_everything(cfg.seed)
 
     loaded = load_model_and_tokenizer(cfg.model)
-    splits = load_gsm8k(cfg.data)
+    dataset_splits = load_gsm8k(cfg.data)
+
+    valid = {"train": dataset_splits.train, "val": dataset_splits.val, "test": dataset_splits.test}
+    unknown = set(splits) - set(valid)
+    if unknown:
+        raise ValueError(f"Unknown split(s) {sorted(unknown)}; choose from {sorted(valid)}")
+    # De-duplicate while preserving the requested order.
+    selected = list(dict.fromkeys(splits))
 
     rep_spec = RepresentationDescriptor(
         layers=cfg.representation.layers,
@@ -50,8 +72,9 @@ def run_fixed_budget_sweep(cfg: ExperimentConfig, *, repo_dir: str | Path | None
             "model_revision": loaded.revision,
             "resolved_dtype": loaded.resolved_dtype,
             "device": loaded.device,
-            "split_sizes": splits.sizes(),
+            "split_sizes": dataset_splits.sizes(),
             "method": METHOD,
+            "eval_splits": selected,
             "fixed_budgets": cfg.generation.fixed_budgets,
             "num_samples": cfg.generation.num_samples,
         },
@@ -63,59 +86,62 @@ def run_fixed_budget_sweep(cfg: ExperimentConfig, *, repo_dir: str | Path | None
         open(runs_path, "w") as out,
         ShardedRepresentationWriter(run_dir / "hidden_states", rep_spec) as hidden_writer,
     ):
-        for example in splits.test:
-            for budget in cfg.generation.fixed_budgets:
-                for sample_index in range(cfg.generation.num_samples):
-                    result = generate_at_budget(
-                        loaded,
-                        example.example_id,
-                        example.question,
-                        budget,
-                        cfg.generation,
-                        rep_spec,
-                        sample_index=sample_index,
-                    )
-                    correct = answers_match(result.prediction, example.gold_answer)
-                    rewards = compute_reward_sweep(
-                        correct=correct,
-                        compute_units=result.reasoning_tokens,
-                        reward_config=cfg.reward,
-                    )
-                    row = {
-                        "example_id": example.example_id,
-                        "question": example.question,
-                        "ground_truth": example.gold_answer,
-                        "method": METHOD,
-                        "seed": cfg.seed,
-                        "budget": budget,
-                        "sample_index": sample_index,
-                        "prompt_tokens": result.prompt_tokens,
-                        "reasoning_tokens": result.reasoning_tokens,
-                        "answer_tokens": result.answer_tokens,
-                        "total_generated_tokens": result.total_generated_tokens,
-                        "finished_naturally": result.finished_naturally,
-                        "forced_answer": result.forced_answer,
-                        "latency_s": result.latency_s,
-                        "prediction": result.prediction,
-                        "correct": correct,
-                        "compute_proxy": cfg.reward.compute_proxy,
-                        "reward_task": rewards[0].reward_task,
-                        "rewards_by_lambda": [
-                            {
-                                "lambda_compute": r.lambda_compute,
-                                "reward_compute": r.reward_compute,
-                                "reward_total": r.reward_total,
-                            }
-                            for r in rewards
-                        ],
-                    }
-                    out.write(json.dumps(row) + "\n")
-                    hidden_writer.add(
-                        example.example_id,
-                        reasoning_step=0,
-                        layer_vectors=result.last_hidden_states,
-                        budget=budget,
-                        sample_index=sample_index,
-                    )
+        for split_name in selected:
+            for example in valid[split_name]:
+                for budget in cfg.generation.fixed_budgets:
+                    for sample_index in range(cfg.generation.num_samples):
+                        result = generate_at_budget(
+                            loaded,
+                            example.example_id,
+                            example.question,
+                            budget,
+                            cfg.generation,
+                            rep_spec,
+                            sample_index=sample_index,
+                        )
+                        correct = answers_match(result.prediction, example.gold_answer)
+                        rewards = compute_reward_sweep(
+                            correct=correct,
+                            compute_units=result.reasoning_tokens,
+                            reward_config=cfg.reward,
+                        )
+                        row = {
+                            "example_id": example.example_id,
+                            "source_split": split_name,
+                            "question": example.question,
+                            "ground_truth": example.gold_answer,
+                            "method": METHOD,
+                            "seed": cfg.seed,
+                            "budget": budget,
+                            "sample_index": sample_index,
+                            "prompt_tokens": result.prompt_tokens,
+                            "reasoning_tokens": result.reasoning_tokens,
+                            "answer_tokens": result.answer_tokens,
+                            "total_generated_tokens": result.total_generated_tokens,
+                            "finished_naturally": result.finished_naturally,
+                            "forced_answer": result.forced_answer,
+                            "latency_s": result.latency_s,
+                            "prediction": result.prediction,
+                            "correct": correct,
+                            "compute_proxy": cfg.reward.compute_proxy,
+                            "reward_task": rewards[0].reward_task,
+                            "rewards_by_lambda": [
+                                {
+                                    "lambda_compute": r.lambda_compute,
+                                    "reward_compute": r.reward_compute,
+                                    "reward_total": r.reward_total,
+                                }
+                                for r in rewards
+                            ],
+                        }
+                        out.write(json.dumps(row) + "\n")
+                        hidden_writer.add(
+                            example.example_id,
+                            reasoning_step=0,
+                            layer_vectors=result.last_hidden_states,
+                            budget=budget,
+                            sample_index=sample_index,
+                            source_split=split_name,
+                        )
 
     return run_dir
