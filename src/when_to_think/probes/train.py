@@ -189,10 +189,11 @@ def train_probe_for_target(
     best = layer_results[best_layer]
     y_best = _y_for(best_ds, target)
 
-    # Input-only difficulty baseline on the SAME instances (fair comparison).
+    # Input-only difficulty baseline on the SAME instances (fair comparison, same
+    # target/selection discipline; only the feature matrix differs).
     X_input, input_feature_names = bl.input_difficulty_features(best_ds.meta)
     input_res = _evaluate_feature_matrix(
-        target, X_input, y_best, tr, va, te, cfg.ridge_alphas, cfg, standardize=True
+        target, X_input, y_best, tr, va, te, alphas, cfg, standardize=True
     )
 
     # Prior / base-rate baseline: constant train statistic, scored on test.
