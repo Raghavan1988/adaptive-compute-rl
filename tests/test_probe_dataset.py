@@ -1,7 +1,5 @@
 """Probe dataset construction: targets, split derivation, leakage guard, continue mode."""
 
-import json
-
 import numpy as np
 import pytest
 
@@ -75,13 +73,9 @@ def test_continue_mode_next_vs_max(make_probe_run):
     assert m_max["continue_budget"] == 256 and m_max["delta_value"] == pytest.approx(1.0)
 
 
-def test_leakage_guard_rejects_split_crossing_example(make_probe_run, tmp_path):
-    run_dir = make_probe_run(_records_two_budgets("test-0", [False], [True], n=1))
-    # Corrupt the JSONL: duplicate the example under a second split (a leak).
-    runs_path = run_dir / "fixed_budget_runs.jsonl"
-    rows = [json.loads(line) for line in runs_path.read_text().splitlines()]
-    # Same example_id can't appear in two splits; forge an id whose split differs from
-    # another sharing hidden states is hard — instead assert the guard directly.
+def test_leakage_guard_rejects_split_crossing_example():
+    # The dataset builder derives splits from ids, so a single example can't normally
+    # span splits; assert the guard itself catches the invariant violation directly.
     from when_to_think.probes.dataset import ProbeDataset
 
     ds = ProbeDataset(
