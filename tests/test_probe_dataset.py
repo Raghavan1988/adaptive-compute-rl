@@ -32,7 +32,7 @@ def test_targets_delta_and_fixes_incorrect(make_probe_run):
     recs = _records_two_budgets("test-0", [False, False], [True, True])
     # Example already correct at both (p_stop=1, p_cont=1): no fix, delta 0.
     recs += _records_two_budgets("test-1", [True, True], [True, True])
-    run_dir = make_probe_run(recs)
+    run_dir = make_probe_run(recs, hidden_dim=4)
 
     rows = load_runs(run_dir / "fixed_budget_runs.jsonl")
     reader = HiddenStateReader(run_dir / "hidden_states")
@@ -61,7 +61,7 @@ def test_continue_mode_next_vs_max(make_probe_run):
                      "hidden": np.ones(4)})
         recs.append({"example_id": "train-0", "budget": 128, "sample_index": s, "correct": False})
         recs.append({"example_id": "train-0", "budget": 256, "sample_index": s, "correct": True})
-    run_dir = make_probe_run(recs)
+    run_dir = make_probe_run(recs, hidden_dim=4)
     rows = load_runs(run_dir / "fixed_budget_runs.jsonl")
     reader = HiddenStateReader(run_dir / "hidden_states")
 
@@ -92,7 +92,7 @@ def test_empty_dataset_raises(make_probe_run):
     # A single budget → no decision points → no instances.
     recs = [{"example_id": "test-0", "budget": 0, "sample_index": 0, "correct": True,
              "hidden": np.ones(4)}]
-    run_dir = make_probe_run(recs)
+    run_dir = make_probe_run(recs, hidden_dim=4)
     rows = load_runs(run_dir / "fixed_budget_runs.jsonl")
     reader = HiddenStateReader(run_dir / "hidden_states")
     with pytest.raises(ValueError, match="No probe instances"):
