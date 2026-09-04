@@ -12,8 +12,9 @@ quantities live in config, not in the script). With no ``--config`` the ProbeCon
 defaults are used.
 
 Usage:
-    python scripts/train_probe.py --run-dir results/<run_id> --config configs/experiment/gsm8k_m3.yaml
-    python scripts/train_probe.py --run-dir results/<run_id>           # ProbeConfig defaults
+    python scripts/train_probe.py --run-dir results/<run_id> \
+        --config configs/experiment/gsm8k_m3.yaml
+    python scripts/train_probe.py --run-dir results/<run_id>       # ProbeConfig defaults
 """
 
 from __future__ import annotations
