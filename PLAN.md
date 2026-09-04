@@ -15,7 +15,9 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 ## Current status
 
 **M0 (Infrastructure), M1 (Counterfactual compute dataset), and M2 (Oracle allocation)
-are complete** as of 2026-09-01. Next up: **M3** (Supervised value-of-compute probe).
+are complete** as of 2026-09-01. **M3 (Supervised value-of-compute probe) is built and
+tested end-to-end on synthetic data** as of 2026-09-03; its scientific verdict awaits a
+real run. Next up: run M3 with the real SLM, then **M4** (RL adaptive policy).
 
 - M0 pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
   writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
@@ -28,7 +30,13 @@ are complete** as of 2026-09-01. Next up: **M3** (Supervised value-of-compute pr
   writes `oracle_summary.json`, per-example `oracle_allocation.jsonl`, and
   `oracle_frontier.png`, and prints whether the oracle beats fixed budgets at matched
   accuracy (the M2 exit gate).
-- 84 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- M3 probe builds from a sweep covering all splits:
+  `python scripts/generate_fixed_budgets.py --config configs/experiment/gsm8k_m3.yaml --splits train,val,test`
+  then `python scripts/train_probe.py --run-dir results/<run_id> --config configs/experiment/gsm8k_m3.yaml`
+  writes `probe_results.json`, per-example `probe_predictions.jsonl`, and layer-wise +
+  probe-vs-baseline plots, and prints the Question 2 verdict (does internal state beat the
+  input-only baseline?). Fits on train, tunes on val, scores test once.
+- 105 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
 - **The pipelines are verified end-to-end but not yet with the real model** — M0/M1 on a
   tiny random model, M2 on a synthetic heterogeneous run. The scientific answers (is
   value-of-compute heterogeneous? does the oracle beat fixed budgets?) require running
@@ -173,16 +181,46 @@ the oracle fails to beat fixed budgets.
 
 Goal: can frozen hidden states predict the marginal value of continuing?
 
-- [ ] `scripts/train_probe.py`: train on train split, tune on val, report test separately.
-- [ ] Targets: Δ_t = P(correct|CONTINUE) − P(correct|STOP), and the binary
-      "continuing fixes an incorrect answer" label. Keep definitions explicit and distinct
-      from "probability the current answer is correct".
-- [ ] Probe types: logistic/linear first; small MLP only if justified.
-- [ ] Baselines to beat: entropy-based, verbalized confidence, input-only difficulty.
-- [ ] Layer-wise and reasoning-step-wise analysis.
+- [x] `scripts/train_probe.py`: train on train split, tune on val, report test separately.
+      Strict split discipline — the scaler and probe fit on TRAIN only, layer/alpha
+      chosen by VAL, TEST scored once (`probes/train.py`).
+- [x] Targets: Δ_t = P(correct|CONTINUE) − P(correct|STOP) (regression), and the binary
+      "continuing fixes an incorrect answer" label. Both are population quantities from the
+      counterfactual samples, kept explicitly distinct from "P(current answer correct)"
+      (logged as `p_stop` / `current_correct`, never used as the target). `continue_mode`
+      selects next-budget (marginal) vs to-max value (`probes/dataset.py`).
+- [x] Probe types: logistic (binary) + ridge/linear (regression), pure-numpy and
+      deterministic (`probes/models.py`). MLP not added — not justified yet.
+- [~] Baselines: **input-only difficulty** and **prior/base-rate** built and compared
+      (`probes/baselines.py`). **Entropy** and **verbalized confidence** are deferred —
+      they need signals the sweep does not yet log (token logits; a confidence
+      elicitation). The probe-vs-baseline harness accepts any extra feature matrix so they
+      drop in once collected. Until then Q2 is answered vs the input-only baseline, and the
+      scope limit is reported in `probe_results.json` (`baselines_not_yet_available`).
+- [x] Layer-wise analysis (per candidate layer, selected on val) and decision-point
+      analysis (test metrics per stop-budget) — `per_stop_budget_test`, layer-wise plot.
+
+**Tests (required):** hidden-state reader round-trip; target definitions (delta +
+fixes-incorrect); split derivation + leakage guard; probe models (ridge/logistic,
+train-only scaler, determinism); metrics (AUROC incl. ties/degenerate, R², Brier);
+and an end-to-end run where a hidden state encoding the target beats the input-only
+baseline and prior, with `train/val/test` sizes and no test leakage. ✅ All present
+(`test_hidden_reader.py`, `test_probe_dataset.py`, `test_probe_models.py`,
+`test_probe_metrics.py`, `test_probe_train.py`).
+
+**Built:** `representations/reader.py` (join hidden states back to outcome rows),
+`probes/{dataset,models,metrics,baselines,train,plots}.py`, `scripts/train_probe.py`,
+`configs/experiment/gsm8k_m3.yaml`, and a `--splits` option on the fixed-budget sweep
+so TRAIN/VAL probe data is generated alongside TEST (default stays test-only, so the M1
+run is unchanged). Config gained a typed `ProbeConfig`.
 
 **Exit:** Question 2 answered. Report train/val/test separately; describe results
 as *decodability*, not mechanism.
+⚠️ Pipeline complete and verified end-to-end, but only on synthetic decodable data (a
+smoke test, like M0–M2). The scientific verdict is **not yet obtained** — run the M3
+sweep + probe with Qwen2.5-1.5B on real GSM8K (see `Grok_M3.md`) before trusting
+`hidden_state_beats_input_baseline`. The script prints the verdict and warns when the
+hidden state is not more decodable than the input alone.
 
 ---
 
