@@ -1,0 +1,53 @@
+# Real M3 experiment: supervised value-of-compute probe on Qwen2.5-1.5B / GSM8K.
+#
+# Two-step protocol (a probe needs TRAIN/VAL/TEST hidden states, not just test):
+#   1) generate probe data on all three splits:
+#        python scripts/generate_fixed_budgets.py --config configs/experiment/gsm8k_m3.yaml \
+#          --splits train,val,test --set model.revision=<commit-hash> \
+#          --set data.max_train_examples=N   # cap at run time; keep caps out of the shared data config
+#   2) train + evaluate the probe (fits on train, tunes on val, scores test once):
+#        python scripts/train_probe.py --run-dir results/<run_id> --config configs/experiment/gsm8k_m3.yaml
+#
+# The sweep stores MULTIPLE layers so the probe can do the layer-wise analysis; the
+# probe.layers grid must be a subset of representation.layers.
+name: gsm8k_m3
+seed: 0
+
+model: qwen2.5-1.5b
+data: gsm8k
+
+generation:
+  max_reasoning_budget: 512      # must be >= max(fixed_budgets); validation enforces this
+  reasoning_increment: 64
+  decision_interval: 64
+  fixed_budgets: [0, 128, 256, 512]   # 0 = direct answer, no reasoning
+  temperature: 0.7
+  top_p: 0.95
+  do_sample: true
+  num_samples: 5                 # counterfactual samples per (example, budget) estimate P(correct|budget)
+
+representation:
+  # Probe candidate layers: a spread through the network for the layer-wise analysis.
+  # Negative indices count from the last layer (0 is the embedding output).
+  layers: [-1, -9, -17, -25]
+  token_position: last
+  pooling: null
+
+reward:
+  task_reward_correct: 1.0
+  task_reward_incorrect: 0.0
+  lambda_compute_sweep: [0.0, 0.0001, 0.0005, 0.001]   # unused by the probe; kept for run-record parity
+  compute_proxy: reasoning_tokens
+
+probe:
+  layers: [-1, -9, -17, -25]     # must be a subset of representation.layers (stored vectors)
+  continue_mode: next            # value of ONE more budget increment (the STOP/CONTINUE decision)
+  correct_threshold: 0.5         # P(correct) below which the current answer counts as "incorrect"
+  ridge_alphas: [0.1, 1.0, 10.0, 100.0]     # regression L2 grid, selected on VAL only
+  logreg_alphas: [0.1, 1.0, 10.0, 100.0]    # classification L2 grid, selected on VAL only
+  logreg_lr: 0.1
+  logreg_max_iter: 500
+  standardize: true
+
+output_dir: results
+notes: "M3 real run: value-of-compute probe on frozen hidden states, GSM8K, split-disciplined."
