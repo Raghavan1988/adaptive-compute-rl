@@ -10,6 +10,7 @@ import json
 import numpy as np
 import pytest
 
+from when_to_think.policies.data import Checkpoint, Trajectory
 from when_to_think.representations import (
     RepresentationDescriptor,
     ShardedRepresentationWriter,
@@ -57,5 +58,33 @@ def make_probe_run(tmp_path):
                 hw.add(eid, reasoning_step=0, layer_vectors={-1: np.asarray(hidden, np.float32)},
                        budget=r["budget"], sample_index=r["sample_index"])
         return run_dir
+
+    return _factory
+
+
+@pytest.fixture
+def make_trajectory():
+    """Factory: build a Trajectory from a list of (cum_tokens, correct, signal) steps.
+
+    ``signal`` is written into dim 0 of the (layer -1) hidden state so tests can control
+    what the policy should learn; remaining dims are optional light noise.
+    """
+
+    def _factory(example_id, source_split, steps, *, sample_index=0, hidden_dim=4, rng=None):
+        cps = []
+        for k, (tokens, correct, signal) in enumerate(steps):
+            vec = np.zeros(hidden_dim, dtype=np.float32)
+            vec[0] = signal
+            if rng is not None and hidden_dim > 1:
+                vec[1:] = rng.normal(0, 0.1, size=hidden_dim - 1)
+            cps.append(Checkpoint(
+                step_index=k, cumulative_reasoning_tokens=tokens, correct=bool(correct),
+                prediction=("42" if correct else "0"), finished_naturally=False,
+                hidden={-1: vec},
+            ))
+        return Trajectory(
+            example_id=example_id, source_split=source_split, sample_index=sample_index,
+            prompt_tokens=5, gold_answer="42", checkpoints=cps,
+        )
 
     return _factory
