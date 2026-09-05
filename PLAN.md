@@ -15,9 +15,10 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 ## Current status
 
 **M0 (Infrastructure), M1 (Counterfactual compute dataset), and M2 (Oracle allocation)
-are complete** as of 2026-09-01. **M3 (Supervised value-of-compute probe) is built and
-tested end-to-end on synthetic data** as of 2026-09-03; its scientific verdict awaits a
-real run. Next up: run M3 with the real SLM, then **M4** (RL adaptive policy).
+are complete** as of 2026-09-01. **M3 (Supervised value-of-compute probe)** and
+**M4 (RL adaptive STOP/CONTINUE policy)** are **built and tested end-to-end on synthetic
+data** as of 2026-09-04; their scientific verdicts await real runs. Next up: run M3 and
+M4 with the real SLM (see `Grok_M3.md`, `Grok_M4.md`), then **M5** (analysis).
 
 - M0 pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
   writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
@@ -36,7 +37,13 @@ real run. Next up: run M3 with the real SLM, then **M4** (RL adaptive policy).
   writes `probe_results.json`, per-example `probe_predictions.jsonl`, and layer-wise +
   probe-vs-baseline plots, and prints the Question 2 verdict (does internal state beat the
   input-only baseline?). Fits on train, tunes on val, scores test once.
-- 105 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- M4 policy runs from a trajectory sweep:
+  `python scripts/generate_trajectories.py --config configs/experiment/gsm8k_m4.yaml --splits train,val,test`
+  then `python scripts/train_policy.py --run-dir results/<run_id> --config configs/experiment/gsm8k_m4.yaml`
+  trains one REINFORCE policy per `lambda`, evaluates on test, and writes `policy_results.json`,
+  per-episode `policy_episodes.jsonl`, and the headline `policy_frontier.png` (adaptive vs
+  fixed vs oracle, with bootstrap CIs and collapse flags). Prints the Q3/Q4 verdict.
+- 126 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
 - **The pipelines are verified end-to-end but not yet with the real model** — M0/M1 on a
   tiny random model, M2 on a synthetic heterogeneous run. The scientific answers (is
   value-of-compute heterogeneous? does the oracle beat fixed budgets?) require running
@@ -228,22 +235,56 @@ hidden state is not more decodable than the input alone.
 
 Goal: a STOP/CONTINUE policy on hidden states that beats baselines at matched compute.
 
-- [ ] STOP/CONTINUE environment:
-      - STOP → terminate, score final answer, apply accumulated compute cost.
-      - CONTINUE → grant a fixed reasoning increment, update state, accrue cost, next decision.
-      - Always enforce a max compute budget.
-- [ ] Policy architecture separable from the frozen base SLM.
-- [ ] Reward `R = R_task − λ·C`, with `λ` swept — never a single hard-coded value.
-- [ ] `scripts/train_policy.py` (thin entry point).
-- [ ] Collapse diagnostics logged every run (see `CLAUDE.md` / `AGENTS.md` §16).
-- [ ] Reward-hacking checks (`AGENTS.md` §17).
-- [ ] Compare against **all** baselines at matched / explicitly-reported compute.
+**Environment design (research-significant, §25): offline over coherent trajectory
+checkpoints.** The policy only decides *when to stop* — never what the SLM generates —
+so one reasoning rollout per example to the budget cap, checkpointed every
+`decision_interval` tokens, fully specifies the environment: CONTINUE just reveals the
+next checkpoint of the *same* trajectory (no branching, no monotonicity assumed, §4.5).
+This is faithful and deployable, yet trains offline and cheaply (no live SLM during RL),
+matching the M0–M3 "verified on synthetic/tiny, real verdict deferred" pattern.
 
-**Tests (required):** reward calculation and STOP/CONTINUE transition semantics;
-budget enforcement in the env.
+- [x] STOP/CONTINUE environment (`policies/env.py`):
+      - STOP → terminate, score the checkpoint's provisional answer, apply accumulated
+        compute cost exactly once (§17).
+      - CONTINUE → reveal the next checkpoint (a fixed reasoning increment granted at
+        generation time); cost accrues, charged in full at the terminal STOP.
+      - Max compute budget enforced structurally: CONTINUE at the last checkpoint is a
+        forced STOP, and an assertion guards against ever billing beyond the cap (§15).
+- [x] Policy separable from the frozen base SLM (`policies/policy.py`): a small
+      linear/MLP network over the decision-point hidden state (+ optional progress
+      feature). The SLM is never touched by training.
+- [x] Reward `R = R_task − λ·C`, `λ` swept — one policy trained per penalty in
+      `reward.lambda_compute_sweep` (`policies/experiment.py`); never a single value (§7).
+- [x] `scripts/train_policy.py` + `scripts/generate_trajectories.py` (thin entry points).
+- [x] Collapse diagnostics logged every run (`policies/diagnostics.py`): fraction
+      STOP/CONTINUE, mean reasoning tokens, accuracy, mean reward with components
+      separated, action distribution by step, and explicit ~always-STOP / ~always-CONTINUE
+      collapse flags (§16).
+- [x] Reward-hacking checks (§17): reward components logged apart, `reward_task` asserted
+      to equal accuracy, collapse surfaced — rising reward is not assumed to be learning.
+- [x] Compare against baselines at matched compute (`policies/evaluate.py`): fixed-budget
+      and omniscient-oracle frontiers on the SAME test trajectories, with the fixed
+      accuracy interpolated at the policy's compute and bootstrap CIs over examples (§4.1, §20).
 
-**Exit:** Questions 3 and 4 answered — the headline accuracy-vs-compute Pareto
-curve with uncertainty across seeds / bootstrap CIs.
+**Tests (required):** reward calculation and STOP/CONTINUE transition semantics; budget
+enforcement in the env. ✅ Present (`test_policy_env.py`), plus a REINFORCE learning test
+(the policy learns to stop easy examples early and continue hard ones, beating the
+degenerate baselines — `test_policy_reinforce.py`), diagnostics/collapse, evaluation math,
+trajectory round-trip, and an incremental-generation smoke test on a tiny model.
+
+**Built:** `generation/incremental.py` (coherent checkpointed trajectory generation),
+`policies/{data,env,policy,reinforce,rollouts,diagnostics,evaluate,experiment,generate,plots}.py`,
+`scripts/{generate_trajectories,train_policy}.py`, `configs/experiment/gsm8k_m4.yaml`, and a
+typed `PolicyConfig`.
+
+**Exit:** Questions 3 and 4 answered — the headline accuracy-vs-compute Pareto curve
+with bootstrap CIs.
+⚠️ Pipeline complete and verified end-to-end, but only on synthetic separable data (a
+smoke test, like M0–M3): a REINFORCE policy learns the adaptive rule and beats fixed
+budgets at matched compute *by construction*. The **scientific verdict is not yet
+obtained** — run `generate_trajectories.py` + `train_policy.py` with Qwen2.5-1.5B on real
+GSM8K (see `Grok_M4.md`) before trusting `adaptive_beats_fixed`. The script prints the
+verdict, warns on collapse, and warns when the policy fails to beat fixed budgets.
 
 ---
 
