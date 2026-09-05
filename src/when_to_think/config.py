@@ -153,6 +153,41 @@ class ProbeConfig:
 
 
 @dataclass
+class PolicyConfig:
+    """RL STOP/CONTINUE policy on frozen hidden states (M4).
+
+    The policy is separable from the frozen SLM (AGENTS.md §14): a small network over
+    the decision-point hidden state (optionally plus a normalized 'progress' feature so
+    it knows how much budget it has already spent). One policy is trained per compute
+    penalty in ``reward.lambda_compute_sweep`` — ``lambda`` is never universal
+    (AGENTS.md §7), so the M4 frontier comes from the sweep, not a single value.
+
+    Selection discipline mirrors M3 (AGENTS.md §4.2): the policy is trained on TRAIN
+    trajectories and evaluated greedily on TEST; ``val`` is available for early
+    model selection. Action semantics are research-significant (§25): 0 = STOP,
+    1 = CONTINUE, and CONTINUE at the max budget is a forced STOP.
+    """
+
+    # Which stored hidden layer the policy observes; must be a subset of what the
+    # trajectory run stored.
+    layer: int = -1
+    # Empty => a linear policy (logits = W h + b). Non-empty => MLP hidden widths.
+    hidden_sizes: list[int] = field(default_factory=list)
+    # Append cumulative_tokens / max_budget as an input so the policy can condition on
+    # remaining budget, not just the hidden state.
+    include_progress_feature: bool = True
+    standardize: bool = True
+    # REINFORCE optimization.
+    lr: float = 1e-3
+    iterations: int = 200
+    episodes_per_batch: int = 128
+    entropy_coef: float = 0.01  # entropy bonus discourages STOP/CONTINUE collapse (§16)
+    baseline: str = "batch_mean"  # "batch_mean" or "none" (variance reduction)
+    grad_clip: float = 1.0
+    eval_greedy: bool = True  # deterministic argmax rollout at evaluation
+
+
+@dataclass
 class ExperimentConfig:
     """Top-level experiment definition. `seed` seeds Python/NumPy/PyTorch/sampling."""
 
@@ -164,6 +199,7 @@ class ExperimentConfig:
     representation: RepresentationConfig = field(default_factory=RepresentationConfig)
     reward: RewardConfig = field(default_factory=RewardConfig)
     probe: ProbeConfig = field(default_factory=ProbeConfig)
+    policy: PolicyConfig = field(default_factory=PolicyConfig)
     output_dir: str = "results"
     notes: str = ""
 
@@ -247,6 +283,7 @@ def _build_experiment(raw: dict[str, Any]) -> ExperimentConfig:
     representation = _from_mapping(RepresentationConfig, raw.pop("representation", {}))
     reward = _from_mapping(RewardConfig, raw.pop("reward", {}))
     probe = _from_mapping(ProbeConfig, raw.pop("probe", {}))
+    policy = _from_mapping(PolicyConfig, raw.pop("policy", {}))
 
     unknown = set(raw) - _SCALAR_FIELDS
     if unknown:
@@ -261,6 +298,7 @@ def _build_experiment(raw: dict[str, Any]) -> ExperimentConfig:
         representation=representation,
         reward=reward,
         probe=probe,
+        policy=policy,
         **raw,
     )
     validate_config(cfg)
@@ -301,6 +339,18 @@ def validate_config(cfg: ExperimentConfig) -> None:
         )
     if any(lam < 0 for lam in r.lambda_compute_sweep):
         raise ValueError("reward.lambda_compute_sweep values must be non-negative")
+
+    pol = cfg.policy
+    if pol.iterations <= 0 or pol.episodes_per_batch <= 0:
+        raise ValueError("policy.iterations and policy.episodes_per_batch must be positive")
+    if pol.lr <= 0:
+        raise ValueError("policy.lr must be positive")
+    if pol.entropy_coef < 0:
+        raise ValueError("policy.entropy_coef must be non-negative")
+    if pol.baseline not in ("batch_mean", "none"):
+        raise ValueError("policy.baseline must be 'batch_mean' or 'none'")
+    if any(h <= 0 for h in pol.hidden_sizes):
+        raise ValueError("policy.hidden_sizes must be positive widths")
 
     p = cfg.probe
     if not p.layers:
