@@ -1,0 +1,53 @@
+# Real M4 experiment: RL STOP/CONTINUE policy on Qwen2.5-1.5B / GSM8K.
+#
+# Two-step protocol:
+#   1) generate coherent checkpointed trajectories on all splits:
+#        python scripts/generate_trajectories.py --config configs/experiment/gsm8k_m4.yaml \
+#          --splits train,val,test --set model.revision=<commit-hash> \
+#          --set data.max_train_examples=300
+#   2) train one policy per lambda and evaluate on test (headline frontier):
+#        python scripts/train_policy.py --run-dir results/<run_id> \
+#          --config configs/experiment/gsm8k_m4.yaml
+name: gsm8k_m4
+seed: 0
+
+model: qwen2.5-1.5b
+data: gsm8k
+
+generation:
+  max_reasoning_budget: 512      # the STOP/CONTINUE budget cap
+  reasoning_increment: 64
+  decision_interval: 64          # a checkpoint every 64 reasoning tokens
+  fixed_budgets: [0, 128, 256, 512]   # unused by M4 generation; kept for run-record parity
+  temperature: 0.7
+  top_p: 0.95
+  do_sample: true
+  num_samples: 1                 # trajectories per example; >1 gives more episodes per example
+
+representation:
+  layers: [-1, -9]               # must include policy.layer
+  token_position: last           # trajectory generation requires 'last'
+  pooling: null
+
+reward:
+  task_reward_correct: 1.0
+  task_reward_incorrect: 0.0
+  # The M4 frontier: one policy trained per penalty. lambda is never universal (§7).
+  lambda_compute_sweep: [0.0, 0.0005, 0.001, 0.002]
+  compute_proxy: reasoning_tokens
+
+policy:
+  layer: -1                      # hidden layer the policy observes (subset of representation.layers)
+  hidden_sizes: []               # [] = linear policy; e.g. [64] for a small MLP
+  include_progress_feature: true # append cumulative_tokens / max_budget
+  standardize: true
+  lr: 0.001
+  iterations: 300
+  episodes_per_batch: 128
+  entropy_coef: 0.01             # discourages STOP/CONTINUE collapse (§16)
+  baseline: batch_mean
+  grad_clip: 1.0
+  eval_greedy: true
+
+output_dir: results
+notes: "M4 real run: REINFORCE STOP/CONTINUE policy on frozen hidden states, GSM8K, matched-compute frontier."
