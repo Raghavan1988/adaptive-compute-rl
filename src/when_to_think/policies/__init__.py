@@ -14,6 +14,10 @@ from when_to_think.policies.data import (
 )
 from when_to_think.policies.diagnostics import summarize_rollouts
 from when_to_think.policies.env import CONTINUE, STOP, StopContinueEnv, stop_reward
+from when_to_think.policies.error_taxonomy import (
+    categorize_episode,
+    summarize_error_taxonomy,
+)
 from when_to_think.policies.evaluate import (
     fixed_step_points,
     matched_compute_comparison,
@@ -34,6 +38,7 @@ __all__ = [
     "StopContinuePolicy",
     "Trajectory",
     "build_features",
+    "categorize_episode",
     "fixed_step_points",
     "greedy_rollout",
     "greedy_rollouts",
@@ -43,6 +48,7 @@ __all__ = [
     "policy_point",
     "run_policy_sweep",
     "stop_reward",
+    "summarize_error_taxonomy",
     "summarize_rollouts",
     "train_policy",
     "write_trajectories",
