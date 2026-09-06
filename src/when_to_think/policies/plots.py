@@ -10,6 +10,47 @@ from pathlib import Path
 from typing import Any
 
 
+def plot_error_taxonomy(
+    taxonomy: dict[str, Any],
+    out_path: str | Path,
+    *,
+    title: str = "Policy error taxonomy",
+) -> Path:
+    """Bar chart of episode counts per error category (M5), colored by fault type."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    order = ["optimal_stop", "correct_but_late", "premature_stop",
+             "overthought_to_wrong", "unavoidable_wrong"]
+    # green = good, orange = wasteful-but-right, red = policy accuracy fault, gray = model limit.
+    colors = {"optimal_stop": "tab:green", "correct_but_late": "tab:orange",
+              "premature_stop": "tab:red", "overthought_to_wrong": "tab:purple",
+              "unavoidable_wrong": "tab:gray"}
+    counts = taxonomy["category_counts"]
+    values = [counts[c] for c in order]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.bar(range(len(order)), values, color=[colors[c] for c in order])
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels([c.replace("_", "\n") for c in order], fontsize=8)
+    ax.set_ylabel("Episodes")
+    ax.set_title(
+        f"{title}  (acc={taxonomy['policy_accuracy']:.3f}, "
+        f"ceiling={taxonomy['ceiling_accuracy']:.3f}, "
+        f"recoverable lost={taxonomy['recoverable_accuracy_lost']:.3f})"
+    )
+    ax.grid(True, axis="y", alpha=0.3)
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    return out_path
+
+
 def plot_policy_frontier(
     results: dict[str, Any],
     out_path: str | Path,
