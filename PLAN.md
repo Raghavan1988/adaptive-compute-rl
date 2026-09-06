@@ -17,8 +17,10 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done.
 **M0 (Infrastructure), M1 (Counterfactual compute dataset), and M2 (Oracle allocation)
 are complete** as of 2026-09-01. **M3 (Supervised value-of-compute probe)** and
 **M4 (RL adaptive STOP/CONTINUE policy)** are **built and tested end-to-end on synthetic
-data** as of 2026-09-04; their scientific verdicts await real runs. Next up: run M3 and
-M4 with the real SLM (see `Grok_M3.md`, `Grok_M4.md`), then **M5** (analysis).
+data** as of 2026-09-04; the **M5 analysis toolkit** (calibration + policy error taxonomy)
+is built and tested as of 2026-09-05. The scientific verdicts for M3–M5 await real runs
+(see `Grok_M3.md`, `Grok_M4.md`). Remaining M5 work — cross-dataset (MATH) generalization
+and the decision-interval ablation — needs the real SLM; the write-up follows the real runs.
 
 - M0 pipeline runs from config: `python scripts/evaluate.py --config configs/experiment/gsm8k_smoke.yaml`
   writes `eval.jsonl` (per-example scores + reward sweep), sharded hidden states, and
@@ -43,7 +45,12 @@ M4 with the real SLM (see `Grok_M3.md`, `Grok_M4.md`), then **M5** (analysis).
   trains one REINFORCE policy per `lambda`, evaluates on test, and writes `policy_results.json`,
   per-episode `policy_episodes.jsonl`, and the headline `policy_frontier.png` (adaptive vs
   fixed vs oracle, with bootstrap CIs and collapse flags). Prints the Q3/Q4 verdict.
-- 126 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
+- M5 analysis runs over any run directory:
+  `python scripts/analyze.py --run-dir results/<run_id>` computes probe calibration
+  (ECE/Brier/reliability from `probe_predictions.jsonl`) and the policy error taxonomy
+  (from `policy_episodes.jsonl` + `trajectories/`), writing `calibration_summary.json` +
+  `reliability_diagram.png` and `error_taxonomy.json` + per-lambda taxonomy plots.
+- 137 tests passing (`pytest`); lint clean (`ruff check src scripts tests`).
 - **The pipelines are verified end-to-end but not yet with the real model** — M0/M1 on a
   tiny random model, M2 on a synthetic heterogeneous run. The scientific answers (is
   value-of-compute heterogeneous? does the oracle beat fixed budgets?) require running
@@ -290,13 +297,37 @@ verdict, warns on collapse, and warns when the policy fails to beat fixed budget
 
 ## M5 — Analysis
 
-- [ ] Error taxonomy (where the policy makes expensive mistakes).
-- [ ] Calibration: ECE, Brier, reliability diagrams (if policy predicts value/probability).
-- [ ] Layer and decision-interval ablations.
-- [ ] Ablations: internal state vs output confidence; internal state vs input-only;
-      correctness-prediction vs value-of-compute prediction; `λ` sweep.
-- [ ] Cross-dataset generalization (add one harder/shifted benchmark, e.g. MATH).
-- [ ] Final figures + research write-up.
+- [x] Error taxonomy (`policies/error_taxonomy.py`): every episode bucketed as
+      `optimal_stop` / `correct_but_late` / `premature_stop` / `overthought_to_wrong` /
+      `unavoidable_wrong`, separating the policy's own accuracy failures (correctable but
+      wrong) from model limitations, and quantifying wasted compute and recoverable
+      accuracy lost. Machine-readable + a per-lambda plot.
+- [x] Calibration (`evaluation/calibration.py`): ECE, Brier, and the reliability curve for
+      the probe's `fixes_incorrect` probability, with a reliability diagram. Described as a
+      decoded signal, not the model's own belief (CLAUDE.md).
+- [~] Ablations. Available from existing outputs: internal-state vs input-only and
+      correctness-prediction vs value-of-compute (both M3 targets), layer-wise (M3), and the
+      `λ` sweep (M4). **Not yet:** internal-state vs *output confidence* (needs the deferred
+      entropy / verbalized-confidence signal, see `probes/baselines.py`) and the
+      **decision-interval** ablation (needs regenerating trajectories at other intervals —
+      a real-model run).
+- [ ] Cross-dataset generalization (MATH): needs a new data loader + a real run; not built.
+- [~] Final figures + write-up: the figure generators exist (M1 accuracy-vs-compute, M2
+      oracle frontier, M3 layer-wise + probe-vs-baseline, M4 policy frontier, M5 reliability
+      + error taxonomy), all generated from result files. The narrative write-up follows the
+      real M1–M4 runs.
+
+**Tests:** calibration (ECE, reliability, Brier, closed final bin) and error-taxonomy
+category assignment + aggregate accounting. ✅ Present (`test_calibration.py`,
+`test_error_taxonomy.py`).
+
+**Built:** `evaluation/calibration.py`, `policies/error_taxonomy.py`,
+`evaluation/plots.py::plot_reliability_diagram`, `policies/plots.py::plot_error_taxonomy`,
+and `scripts/analyze.py` (runs whichever analyses a run directory supports).
+
+**Exit:** the M5 analysis primitives are built and tested on synthetic data. The reported
+numbers become meaningful once M1–M4 have been run with the real SLM; the cross-dataset
+generalization result and the final write-up remain.
 
 ---
 
