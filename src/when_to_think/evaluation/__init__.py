@@ -1,5 +1,10 @@
 """Deterministic evaluation and machine-readable result files."""
 
+from when_to_think.evaluation.calibration import (
+    calibration_summary,
+    expected_calibration_error,
+    reliability_curve,
+)
 from when_to_think.evaluation.counterfactual import (
     accuracy_by_budget,
     load_runs,
@@ -19,7 +24,10 @@ from when_to_think.evaluation.oracle import (
 
 __all__ = [
     "accuracy_by_budget",
+    "calibration_summary",
     "compute_savings_at_matched_accuracy",
+    "expected_calibration_error",
+    "reliability_curve",
     "fixed_budget_points",
     "load_runs",
     "oracle_allocation",
