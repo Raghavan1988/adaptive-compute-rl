@@ -46,6 +46,43 @@ def plot_accuracy_vs_compute(
     return out_path
 
 
+def plot_reliability_diagram(
+    calibration: dict[str, Any],
+    out_path: str | Path,
+    *,
+    title: str = "Reliability diagram",
+) -> Path:
+    """Reliability diagram from a calibration summary (M5): predicted vs observed."""
+    import matplotlib
+
+    matplotlib.use("Agg")  # headless; no display needed
+    import matplotlib.pyplot as plt
+
+    bins = calibration["reliability_curve"]
+    xs = [b["mean_prediction"] for b in bins]
+    ys = [b["fraction_positive"] for b in bins]
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot([0, 1], [0, 1], linestyle="--", color="tab:gray", label="perfect calibration")
+    ax.plot(xs, ys, marker="o", color="tab:blue", label="probe")
+    ece = calibration.get("ece")
+    brier = calibration.get("brier")
+    ax.set_xlabel("Mean predicted probability")
+    ax.set_ylabel("Observed frequency")
+    ax.set_title(f"{title}  (ECE={ece:.3f}, Brier={brier:.3f})")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    return out_path
+
+
 def plot_oracle_frontier(
     summary: dict[str, Any],
     out_path: str | Path,
