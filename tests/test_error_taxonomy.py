@@ -68,5 +68,6 @@ def test_summary_aggregates(make_trajectory):
 
 def test_summary_requires_a_match(make_trajectory):
     trajs = [make_trajectory("test-0", "test", [(0, True, 0), (64, True, 0)])]
+    mismatched = [{"example_id": "other", "sample_index": 0, "stop_step": 0}]
     with pytest.raises(ValueError, match="no matched"):
-        summarize_error_taxonomy(trajs, [{"example_id": "other", "sample_index": 0, "stop_step": 0}])
+        summarize_error_taxonomy(trajs, mismatched)

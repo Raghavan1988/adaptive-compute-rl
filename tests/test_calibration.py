@@ -29,9 +29,8 @@ def test_fully_miscalibrated():
 def test_reliability_curve_bins_and_positive_fraction():
     y = np.array([0, 0, 1, 1])
     prob = np.array([0.1, 0.2, 0.8, 0.9])
-    bins = reliability_curve(y, prob, n_bins=10)
-    # Two occupied bins: [0.1,0.2] region (both negative) and [0.8,0.9] region (both positive).
-    assert all(b["count"] == 2 for b in bins)
+    bins = reliability_curve(y, prob, n_bins=2)  # halves: [0,0.5) negatives, [0.5,1] positives
+    assert len(bins) == 2 and all(b["count"] == 2 for b in bins)
     assert bins[0]["fraction_positive"] == 0.0
     assert bins[-1]["fraction_positive"] == 1.0
 
