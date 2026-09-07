@@ -23,6 +23,35 @@ Retrieval, tool use, and escalation to a larger model are intentionally out of s
 
 ---
 
+## Progress update (as of 2026-09-06)
+
+**The full M0→M5 pipeline is implemented, with 137 tests passing and lint clean.** Every
+milestone runs end-to-end and writes machine-readable results, but so far verified only on
+tiny/synthetic data (a smoke test). The **scientific verdicts require the real Qwen2.5-1.5B
+runs**, which are not yet done (see the `Grok_*.md` task docs).
+
+- **M1 — Counterfactual compute dataset:** fixed-budget sweep over the same examples at
+  budgets `[0,128,256,512]` with counterfactual samples; per-example categorization of
+  value-of-compute (helped / hurt / unchanged) with non-monotonicity kept, plus the
+  accuracy-vs-compute plot. `generate_fixed_budgets.py` → `summarize_fixed_budgets.py`.
+- **M2 — Oracle allocation:** omniscient per-example budget picker; exact data-derived
+  Pareto frontier and matched-accuracy compute savings vs fixed budgets. `build_oracle.py`.
+- **M3 — Value-of-compute probe:** ridge/logistic probes on frozen hidden states predict
+  Δ-accuracy and the "continuing fixes a wrong answer" label; fit on train, tuned on val,
+  scored once on test, vs input-only + prior baselines, with layer-wise analysis.
+  `train_probe.py`. (Entropy / verbalized-confidence baselines still deferred.)
+- **M4 — RL STOP/CONTINUE policy:** REINFORCE over an offline, coherent-trajectory
+  environment (policy conditions on the hidden state, decides when to stop); λ-swept, with
+  collapse diagnostics and the headline accuracy-vs-compute frontier (adaptive vs fixed vs
+  oracle, bootstrap CIs). `generate_trajectories.py` → `train_policy.py`.
+- **M5 — Analysis:** probe calibration (ECE / Brier / reliability diagram) and a policy
+  error taxonomy (premature-stop / overthinking / wasted-compute vs model-limit). `analyze.py`.
+  Remaining: cross-dataset (MATH) generalization, decision-interval ablation, final write-up.
+
+See [`PLAN.md`](./PLAN.md) for the detailed status and exit criteria per milestone.
+
+---
+
 ## Getting Started
 
 **Status:** M0 (infrastructure) is complete. See [`PLAN.md`](./PLAN.md) for the
